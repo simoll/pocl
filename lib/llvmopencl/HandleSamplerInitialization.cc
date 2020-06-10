@@ -79,7 +79,7 @@ HandleSamplerInitialization::runOnFunction(Function &F) {
 
     // get the type of the return value of __translate_sampler
     // this may not always be opencl.sampler_t, it could be a remapped type.
-    Type *type = C->getCalledValue()->getType();
+    Type *type = C->getCalledOperand()->getType();
     PointerType *pt = dyn_cast<PointerType>(type);
     FunctionType *ft = dyn_cast<FunctionType>(pt->getPointerElementType());
     Type *rettype = ft->getReturnType();

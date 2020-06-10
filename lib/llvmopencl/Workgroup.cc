@@ -35,7 +35,6 @@ IGNORE_COMPILER_WARNING("-Wunused-parameter")
 
 #include <llvm/Analysis/ConstantFolding.h>
 #include <llvm/IR/BasicBlock.h>
-#include <llvm/IR/CallSite.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/IRBuilder.h>
@@ -517,10 +516,9 @@ static void replacePrintfCalls(Value *pb, Value *pbp, Value *pbc, bool isKernel,
         for (unsigned i = 0; i < j; ++i)
           ops.push_back(CallInstr->getOperand(i));
 
-        CallSite CS(CallInstr);
         CallInst *NewCI = CallInst::Create(poclPrintf, ops);
         NewCI->setCallingConv(poclPrintf->getCallingConv());
-        NewCI->setTailCall(CS.isTailCall());
+        NewCI->setTailCall(CallInstr->isTailCall());
 
         replaceCIMap.insert(
             std::pair<CallInst *, CallInst *>(CallInstr, NewCI));
@@ -719,7 +717,7 @@ Workgroup::createWrapper(Function *F, FunctionMapping &printfCache) {
 
   // needed for printf
   InlineFunctionInfo IFI;
-  InlineFunction(c, IFI);
+  InlineFunction(*c, IFI);
 
   if (currentPoclDevice->device_side_printf) {
     Function *poclPrintf = M->getFunction("__pocl_printf");
@@ -989,7 +987,7 @@ Workgroup::createDefaultWorkgroupLauncher(llvm::Function *F) {
             new llvm::AllocaInst(ArgElementType, ParamType->getAddressSpace(),
                                  ConstantInt::get(IntegerType::get(*C, 32), 1),
 #ifndef LLVM_OLDER_THAN_10_0
-                                 llvm::MaybeAlign(
+                                 llvm::Align(
 #endif
                                      MAX_EXTENDED_ALIGNMENT
 #ifndef LLVM_OLDER_THAN_10_0
@@ -1012,7 +1010,7 @@ Workgroup::createDefaultWorkgroupLauncher(llvm::Function *F) {
         Arg = new llvm::AllocaInst(ArgElementType, ParamType->getAddressSpace(),
                                    ElementCount,
 #ifndef LLVM_OLDER_THAN_10_0
-                                   llvm::MaybeAlign(
+                                   llvm::Align(
 #endif
                                        MAX_EXTENDED_ALIGNMENT
 #ifndef LLVM_OLDER_THAN_10_0
@@ -1213,7 +1211,7 @@ Workgroup::createArgBufferWorkgroupLauncher(Function *Func,
             unwrap(ArgElementType), LLVMGetPointerAddressSpace(ParamType),
             unwrap(LLVMConstInt(Int32Type, 1, 0)),
 #ifndef LLVM_OLDER_THAN_10_0
-            llvm::MaybeAlign(
+            llvm::Align(
 #endif
                 MAX_EXTENDED_ALIGNMENT
 #ifndef LLVM_OLDER_THAN_10_0
@@ -1248,7 +1246,7 @@ Workgroup::createArgBufferWorkgroupLauncher(Function *Func,
             unwrap(LLVMGetElementType(ParamType)),
             LLVMGetPointerAddressSpace(ParamType), unwrap(ElementCount),
 #ifndef LLVM_OLDER_THAN_10_0
-            llvm::MaybeAlign(
+            llvm::Align(
 #endif
                 MAX_EXTENDED_ALIGNMENT
 #ifndef LLVM_OLDER_THAN_10_0
@@ -1362,7 +1360,7 @@ Workgroup::createGridLauncher(Function *KernFunc, Function *WGFunc,
   LLVMBuildRetVoid(Builder);
 
   InlineFunctionInfo IFI;
-  InlineFunction(dyn_cast<CallInst>(llvm::unwrap(Call)), IFI);
+  InlineFunction(*dyn_cast<CallInst>(llvm::unwrap(Call)), IFI);
 }
 
 /**
