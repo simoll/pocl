@@ -52,6 +52,9 @@ IGNORE_COMPILER_WARNING("-Wstrict-aliasing")
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 
+#include "llvm/Support/raw_ostream.h"
+#include <sys/stat.h>
+
 #ifdef ENABLE_RELOCATION
 
 #if defined(__APPLE__)
@@ -75,6 +78,8 @@ IGNORE_COMPILER_WARNING("-Wstrict-aliasing")
 #include "pocl_file_util.h"
 #include "pocl_cache.h"
 #include "LLVMUtils.h"
+
+#include <experimental/filesystem>
 
 using namespace clang;
 using namespace llvm;
@@ -197,6 +202,12 @@ static std::string getPoclPrivateDataDir() {
     }
 #endif
     return POCL_INSTALL_PRIVATE_DATADIR;
+}
+
+
+static bool file_exists(std::string FileName) {
+  struct stat buffer;
+  return (stat (FileName.c_str(), &buffer) == 0);
 }
 
 int pocl_llvm_build_program(cl_program program,
@@ -572,6 +583,28 @@ int pocl_llvm_build_program(cl_program program,
 
   if (*mod == NULL)
     return CL_BUILD_PROGRAM_FAILURE;
+
+  // BEGIN DUMPER SNIPPET {
+  if (const char * DumpPath = getenv("POCL_DUMP_DIR")) {
+    // Find the next free module index
+    const int ModDumpLimit = 512;
+    for (int i = 0; i < ModDumpLimit; ++i) {
+      std::stringstream SS;
+      SS << DumpPath << "/mod_" << i << ".ll";
+      std::string DumpFile = SS.str();
+      errs() << "PROBING "<< DumpFile << "\n";
+      if (file_exists(DumpFile)) {
+        continue;
+      }
+      errs() << "DUMPING TO "<< DumpFile << "\n";
+      std::error_code EC;
+      raw_fd_ostream OutStream(DumpFile, EC, sys::fs::F_Text);
+      (*mod)->print(OutStream, nullptr);
+      break;
+    }
+  }
+  // } END DUMPER SNIPPET
+
 
   ++numberOfIRs;
 
