@@ -260,7 +260,7 @@ kernel_compiler_passes(cl_device_id device, llvm::Module *input,
     passes.push_back("wi-aa");
     passes.push_back("workitemrepl");
     //passes.push_back("print-module");
-    passes.push_back("workitemloops");
+    passes.push_back("workitemloops"); // FIXME run RV here!
     // Remove the (pseudo) barriers.   They have no use anymore due to the
     // work-item loop control taking care of them.
     passes.push_back("remove-barriers");
@@ -292,6 +292,11 @@ kernel_compiler_passes(cl_device_id device, llvm::Module *input,
 #endif
 
   passes.push_back("STANDARD_OPTS");
+#ifdef POCL_ENABLE_RV
+  if (currentWgMethod == "rv") {
+    passes.push_back("rv-loop-vectorize");
+  }
+#endif
 
   // Due to unfortunate phase-ordering problems with store sinking,
   // loop deletion does not always apply when executing -O3 only
@@ -315,6 +320,11 @@ kernel_compiler_passes(cl_device_id device, llvm::Module *input,
       if (currentWgMethod == "loopvec" && !SPMDDevice) {
         Builder.LoopVectorize = true;
         Builder.SLPVectorize = true;
+#ifdef POCL_ENABLE_RV
+      } else if (currentWgMethod == "rv") {
+        Builder.LoopVectorize = false;
+        Builder.SLPVectorize = true;
+#endif
       } else {
         Builder.LoopVectorize = false;
         Builder.SLPVectorize = false;

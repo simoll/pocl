@@ -61,6 +61,12 @@ IGNORE_COMPILER_WARNING("-Wunused-parameter")
 
 #define CONTEXT_ARRAY_ALIGN 64
 
+#ifdef POCL_ENABLE_RV
+#include "rv/rv.h"
+#include "rv/annotations.h"
+#include "rv/analysis/loopAnnotations.h"
+#endif
+
 using namespace llvm;
 using namespace pocl;
 
@@ -139,7 +145,7 @@ std::pair<llvm::BasicBlock *, llvm::BasicBlock *>
 WorkitemLoops::CreateLoopAround
 (ParallelRegion &region,
  llvm::BasicBlock *entryBB, llvm::BasicBlock *exitBB,
- bool peeledFirst, llvm::Value *localIdVar, size_t LocalSizeForDim,
+ bool peeledFirst, llvm::Value *localIdVar, size_t LocalSizeForDim, bool SetAsVectorLoop,
  bool addIncBlock, llvm::Value *DynamicLocalSize)
 {
   assert (localIdVar != NULL);
@@ -295,7 +301,16 @@ WorkitemLoops::CreateLoopAround
   MDNode *ParallelAccessMD = MDNode::get(
       C, {MDString::get(C, "llvm.loop.parallel_accesses"), AccessGroupMD});
 
-  MDNode *Root = MDNode::get(C, {Dummy, ParallelAccessMD});
+  std::vector<Metadata*> MDEntries{Dummy, ParallelAccessMD};
+
+  if (SetAsVectorLoop) {
+    rv::LoopMD LoopMD;
+    LoopMD.vectorizeEnable = true;
+    rv::AppendMDEntries(C, MDEntries, LoopMD);
+    errs() << "RV Vector Hint: " << loopBranch->getParent()->getName() << "\n";
+  }
+
+  MDNode *Root = MDNode::get(C, MDEntries);
 #endif
 
   // At this point we have
@@ -347,6 +362,21 @@ void WorkitemLoops::releaseParallelRegions() {
     original_parallel_regions = nullptr;
   }
 }
+
+static void
+SetAsVectorLoop(Loop & VecLoop) {
+#ifdef POCL_ENABLE_RV
+  errs() << "RV: Vector loop with block: " << VecLoop.getHeader()->getName() << "\n";
+  // auto *XLoop = LI.getLoopFor(&LoopBlock);
+  // assert(XLoop);
+  rv::LoopMD LoopMD;
+  LoopMD.vectorizeEnable = true;
+  rv::SetLLVMLoopAnnotations(VecLoop, std::move(LoopMD));
+#else
+#error "RV not enabeld!!!"
+#endif
+}
+
 
 bool
 WorkitemLoops::ProcessFunction(Function &F)
@@ -536,7 +566,9 @@ WorkitemLoops::ProcessFunction(Function &F)
                                 0, true);
 
       l = CreateLoopAround(*original, l.first, l.second, peelFirst,
-                           LocalIdXGlobal, WGLocalSizeX, !unrolled, gv);
+                           LocalIdXGlobal, WGLocalSizeX, true, !unrolled, gv);
+
+      // SetAsVectorLoop(*LI->getLoopInfo().getLoopFor(l.second)); // FIXME cost modelling
 
       gv = M->getGlobalVariable("_local_size_y");
       if (gv == NULL)
@@ -544,7 +576,7 @@ WorkitemLoops::ProcessFunction(Function &F)
                                 NULL, "_local_size_y");
 
       l = CreateLoopAround(*original, l.first, l.second,
-                           false, LocalIdYGlobal, WGLocalSizeY, !unrolled, gv);
+                           false, LocalIdYGlobal, WGLocalSizeY, false, !unrolled, gv);
 
       gv = M->getGlobalVariable("_local_size_z");
       if (gv == NULL)
@@ -554,22 +586,28 @@ WorkitemLoops::ProcessFunction(Function &F)
                                 0, true);
 
       l = CreateLoopAround(*original, l.first, l.second,
-                           false, LocalIdZGlobal, WGLocalSizeZ, !unrolled, gv);
+                           false, LocalIdZGlobal, WGLocalSizeZ, false, !unrolled, gv);
 
     } else {
+      bool NoVectorYet = true;
       if (WGLocalSizeX > 1) {
         l = CreateLoopAround(*original, l.first, l.second, peelFirst,
-                             LocalIdXGlobal, WGLocalSizeX, !unrolled);
+                             LocalIdXGlobal, WGLocalSizeX, NoVectorYet, !unrolled);
+        errs() << "With annotated X loop!\n";
+        l.first->getParent()->getParent()->dump();
+        NoVectorYet = false;
       }
 
       if (WGLocalSizeY > 1) {
         l = CreateLoopAround(*original, l.first, l.second, false,
-                             LocalIdYGlobal, WGLocalSizeY);
+                             LocalIdYGlobal, NoVectorYet, WGLocalSizeY);
+        NoVectorYet = false;
       }
 
       if (WGLocalSizeZ > 1) {
         l = CreateLoopAround(*original, l.first, l.second, false,
-                             LocalIdZGlobal, WGLocalSizeZ);
+                             LocalIdZGlobal, NoVectorYet, WGLocalSizeZ);
+        NoVectorYet = false;
       }
     }
 

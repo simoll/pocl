@@ -32,6 +32,10 @@ if(SANITIZER_OPTIONS)
   add_compile_options(${SANITIZER_OPTIONS})
 endif()
 
+if (POCL_ENABLE_RV)
+  add_compile_definitions(POCL_ENABLE_RV)
+endif()
+
 include_directories(AFTER "devices" ".")
 
 ################################################################################

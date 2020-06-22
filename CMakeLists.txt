@@ -159,6 +159,8 @@ endif()
 
 ##################################################################################
 
+option(POCL_ENABLE_RV "Use the Region Vectorizer." ON)
+
 option(OCS_AVAILABLE "Online compiler support available to build pocl with. Default is available." ON)
 
 option(BUILD_SHARED_LIBS "ON=Build shared libs, OFF=static libs" ON)
@@ -740,6 +742,11 @@ if (OCS_AVAILABLE)
     list(GET LLVM_VERSION_PARSED 1 LLVM_VERSION_MINOR)
   endif()
 
+  set (RV_LIB "${LLVM_LIBDIR}/libRV.so")
+  if (POCL_ENABLE_RV)
+    set(POCL_LLVM_LIBS ${RV_LIB} ${POCL_LLVM_LIBS})
+    message(STATUS "Using RV at ${RV_LIB}.")
+  endif()
 endif()
 
 ######################################################################################
