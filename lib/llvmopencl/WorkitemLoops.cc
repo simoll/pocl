@@ -593,8 +593,6 @@ WorkitemLoops::ProcessFunction(Function &F)
       if (WGLocalSizeX > 1) {
         l = CreateLoopAround(*original, l.first, l.second, peelFirst,
                              LocalIdXGlobal, WGLocalSizeX, NoVectorYet, !unrolled);
-        errs() << "With annotated X loop!\n";
-        l.first->getParent()->getParent()->dump();
         NoVectorYet = false;
       }
 

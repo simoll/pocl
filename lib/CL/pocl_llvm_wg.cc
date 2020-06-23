@@ -61,6 +61,10 @@ IGNORE_COMPILER_WARNING("-Wunused-parameter")
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/IR/LegacyPassManager.h>
 
+#ifdef POCL_ENABLE_RV
+#include "rv/passes.h"
+#endif
+
 #define PassManager legacy::PassManager
 
 #include "linker.h"
@@ -294,7 +298,7 @@ kernel_compiler_passes(cl_device_id device, llvm::Module *input,
   passes.push_back("STANDARD_OPTS");
 #ifdef POCL_ENABLE_RV
   if (currentWgMethod == "rv") {
-    passes.push_back("rv-loop-vectorize");
+    passes.push_back("RV");
   }
 #endif
 
@@ -332,6 +336,12 @@ kernel_compiler_passes(cl_device_id device, llvm::Module *input,
       Builder.VerifyInput = true;
       Builder.VerifyOutput = true;
       Builder.populateModulePassManager(*Passes);
+      continue;
+    } else if (passes[i] == "RV") {
+      rv::addPreparatoryPasses(*Passes);
+      rv::addOuterLoopVectorizer(*Passes);
+      rv::addCleanupPasses(*Passes);
+      // passes.push_back("rv-loop-vectorize");
       continue;
     }
 
