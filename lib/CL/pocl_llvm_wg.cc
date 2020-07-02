@@ -33,6 +33,7 @@
 #include <map>
 #include <vector>
 #include <iostream>
+#include <sstream>
 
 #include "CompilerWarnings.h"
 IGNORE_COMPILER_WARNING("-Wunused-parameter")
@@ -460,6 +461,15 @@ int pocl_llvm_generate_workgroup_function_nowrite(
 #ifdef DUMP_LLVM_PASS_TIMINGS
   llvm::reportAndResetTimings();
 #endif
+
+  if (getenv("POCL_DUMP_WG")) {
+    std::stringstream ss;
+    ss << getenv("POCL_DUMP_WG");
+    // ss << "/pocl_wg_kernel.ll";
+    std::error_code EC;
+    llvm::raw_fd_ostream Out(ss.str(), EC);
+    ParallelBC->print(Out, nullptr);
+  }
 
   assert(Output != NULL);
   *Output = (void *)ParallelBC;
