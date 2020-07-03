@@ -462,6 +462,10 @@ int pocl_llvm_generate_workgroup_function_nowrite(
   llvm::reportAndResetTimings();
 #endif
 
+  llvm::Error Err = ParallelBC->materializeAll();
+  if (Err) {
+    std::cerr << "POCL: Could not materialize WG module!\n";
+  }
   if (getenv("POCL_DUMP_WG")) {
     std::stringstream ss;
     ss << getenv("POCL_DUMP_WG");
