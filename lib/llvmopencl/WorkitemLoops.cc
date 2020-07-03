@@ -30,6 +30,8 @@
 
 #include "pocl.h"
 
+extern std::string currentWgMethod;
+
 #include "CompilerWarnings.h"
 IGNORE_COMPILER_WARNING("-Wunused-parameter")
 
@@ -388,6 +390,8 @@ WorkitemLoops::ProcessFunction(Function &F)
   Initialize(K);
   unsigned workItemCount = WGLocalSizeX*WGLocalSizeY*WGLocalSizeZ;
 
+  bool UseVectorLoops = currentWgMethod == "rv";
+
   if (workItemCount == 1)
     {
       K->addLocalSizeInitCode(WGLocalSizeX, WGLocalSizeY, WGLocalSizeZ);
@@ -566,7 +570,7 @@ WorkitemLoops::ProcessFunction(Function &F)
                                 0, true);
 
       l = CreateLoopAround(*original, l.first, l.second, peelFirst,
-                           LocalIdXGlobal, WGLocalSizeX, true, !unrolled, gv);
+                           LocalIdXGlobal, WGLocalSizeX, UseVectorLoops, !unrolled, gv);
 
       // SetAsVectorLoop(*LI->getLoopInfo().getLoopFor(l.second)); // FIXME cost modelling
 
@@ -589,7 +593,7 @@ WorkitemLoops::ProcessFunction(Function &F)
                            false, LocalIdZGlobal, WGLocalSizeZ, false, !unrolled, gv);
 
     } else {
-      bool NoVectorYet = true;
+      bool NoVectorYet = UseVectorLoops; // flips on first annotated loops
       if (WGLocalSizeX > 1) {
         l = CreateLoopAround(*original, l.first, l.second, peelFirst,
                              LocalIdXGlobal, WGLocalSizeX, NoVectorYet, !unrolled);
@@ -598,13 +602,13 @@ WorkitemLoops::ProcessFunction(Function &F)
 
       if (WGLocalSizeY > 1) {
         l = CreateLoopAround(*original, l.first, l.second, false,
-                             LocalIdYGlobal, NoVectorYet, WGLocalSizeY);
+                             LocalIdYGlobal, WGLocalSizeY, NoVectorYet);
         NoVectorYet = false;
       }
 
       if (WGLocalSizeZ > 1) {
         l = CreateLoopAround(*original, l.first, l.second, false,
-                             LocalIdZGlobal, NoVectorYet, WGLocalSizeZ);
+                             LocalIdZGlobal, WGLocalSizeZ, NoVectorYet);
         NoVectorYet = false;
       }
     }
